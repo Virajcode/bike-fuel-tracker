@@ -1,20 +1,40 @@
 import time
-from fastapi import FastAPI, Body
+from datetime import timedelta
+from fastapi import FastAPI, Body, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Dict, Any
 from pydantic import BaseModel
-# import uvicorn
-# from get_locations import get_location
+from sqlalchemy.orm import Session
+
 from crew.chatbot import process_user_query
+from models import User, ChatHistory, UserCreate, UserResponse, Token, SessionLocal
+from auth import get_password_hash, authenticate_user, create_access_token, get_current_active_user, ACCESS_TOKEN_EXPIRE_MINUTES
+
+# Import admin routes after all dependencies are defined
+from admin import router
+
 app = FastAPI(title="Locations API", description="API providing locations coordinates data")
+
+# Include admin routes
+app.include_router(router)
+
+# Get DB session
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 # Add CORS middleware to allow cross-origin requests
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=["*"],  # Allow all origins for development
+    allow_credentials=False,  # Must be False when allow_origins=["*"]
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 class CityRequest(BaseModel):
@@ -58,6 +78,100 @@ async def root():
     return {
         "message": "Welcome to the locations API. Use POST /locations with a JSON body containing 'input_string' to get the list of locations."
     }
+
+
+@app.post("/signup")
+async def signup(user: UserCreate, db: Session = Depends(get_db)):
+    try:
+        # Check if username exists
+        db_user = db.query(User).filter(User.email == user.email).first()
+        if db_user:
+            return {"success": True, "message": "Username already registered"}
+        
+        # Check if email exists
+        db_user = db.query(User).filter(User.email == user.email).first()
+        if db_user:
+            return {"success": True, "message": "Email already registered"}
+        
+        # Create new user
+        hashed_password = get_password_hash(user.password)
+        db_user = User(
+            username=user.email,
+            email=user.email,
+            hashed_password=hashed_password
+        )
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        return {"success": True, "message": "Registration successful"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+class SignInRequest(BaseModel):
+    email: str
+    password: str
+
+@app.post("/signin")
+async def login_for_access_token(
+    credentials: SignInRequest,
+    db: Session = Depends(get_db)
+):
+    try:
+        print(f"Attempting to authenticate user: {credentials.password}")
+        user = authenticate_user(db, credentials.email, credentials.password)
+        if not user:
+            return {
+                "success": False,
+                "message": "Incorrect username or password"
+            }
+        
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user.email}, expires_delta=access_token_expires
+        )
+        return {
+            "success": True,
+            "message": "Login successful",
+            "data": {
+                "access_token": access_token,
+                "token_type": "bearer"
+            }
+        }
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.get("/users/me", response_model=UserResponse)
+async def read_users_me(current_user: User = Depends(get_current_active_user)):
+    return current_user
+
+# Chat history endpoint
+@app.post("/chat/history")
+async def save_chat_history(
+    message: str = Body(...),
+    response: str = Body(...),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    chat_history = ChatHistory(
+        user_id=current_user.id,
+        message=message,
+        response=response
+    )
+    db.add(chat_history)
+    db.commit()
+    db.refresh(chat_history)
+    return {"status": "success", "message": "Chat history saved"}
+
+@app.get("/chat/history")
+async def get_chat_history(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    chat_history = db.query(ChatHistory)\
+        .filter(ChatHistory.user_id == current_user.id)\
+        .order_by(ChatHistory.timestamp.desc())\
+        .all()
+    return chat_history
 
 if __name__ == "__main__":
     import uvicorn

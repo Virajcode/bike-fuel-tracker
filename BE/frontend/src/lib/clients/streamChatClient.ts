@@ -49,7 +49,7 @@ export const streamChat = async ({
         // Create a message with the locations data
             const content: Message = {
               id: generateUUID(),
-              content: `Here are some major cities around the world:`,
+              content: `Here are some places based on your desciption:`,
               locations: locationsData.content, // Add the locations data from the API
               role: "assistant",
               parts: [{ 

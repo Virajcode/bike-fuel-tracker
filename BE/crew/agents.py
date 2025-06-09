@@ -25,7 +25,7 @@ chatbot = Agent(
         When suggesting locations, analyze the user's description carefully and use the location tool
         to find the 5 most relevant places.And return the final answer as a valid JSON object.""",
     backstory="I'm an AI travel assistant specialized in suggesting personalized travel destinations and creating custom trip itineraries. I use advanced tools to find the perfect locations based on user preferences.",
-    # verbose=True,
+    verbose=True,
     allow_delegation=False,
     tools=[location_tool],
     llm=llm,
