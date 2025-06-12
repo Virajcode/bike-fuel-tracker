@@ -37,6 +37,7 @@ class AuthService {
     } catch (error) {
       console.error('Sign up error:', error);
       return {
+        data: null,
         success: false,
         message: 'An error occurred during sign up',
       };
@@ -57,9 +58,11 @@ class AuthService {
     } catch (error) {
       console.error('Sign in error:', error);
       return {
+        data: null,
         success: false,
-        message: 'An error occurred during sign in',
+        message: 'An error occurred during sign up',
       };
+
     }
   }
 

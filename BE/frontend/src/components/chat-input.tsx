@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { ArrowUp, Square } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import Textarea from "react-textarea-autosize";
 import { Button } from "@/components/ui/button";
 import { Message } from "@/lib/types";
@@ -28,18 +28,6 @@ export function ChatInput({
   appendAndTrigger,
 }: ChatInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [isComposing, setIsComposing] = useState(false); // Composition state
-  const [enterDisabled, setEnterDisabled] = useState(false); // Disable Enter after composition ends
-
-  const handleCompositionStart = () => setIsComposing(true);
-
-  const handleCompositionEnd = () => {
-    setIsComposing(false);
-    setEnterDisabled(true);
-    setTimeout(() => {
-      setEnterDisabled(false);
-    }, 300);
-  };
 
   return (
     <div
@@ -60,7 +48,7 @@ export function ChatInput({
         {messages === undefined ||
           (messages.length === 0 && (
             <div className="mb-6">
-              <SuggestedActions appendAndTrigger={appendAndTrigger} chatId={chatId} />
+              <SuggestedActions/>
             </div>
           ))}
         <div className="relative flex items-center w-full gap-2 bg-muted rounded-3xl border border-input px-4 py-3">
@@ -70,29 +58,18 @@ export function ChatInput({
             rows={1}
             maxRows={5}
             tabIndex={0}
-            onCompositionStart={handleCompositionStart}
-            onCompositionEnd={handleCompositionEnd}
             placeholder="Enter your discription..."
             spellCheck={false}
             value={userInput}
             className="resize-none w-full bg-transparent border-0 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-            onChange={(e) => {
-              handleInputChange(e);
-            }}
+            onChange={handleInputChange}
             onKeyDown={(e) => {
-              if (
-                e.key === "Enter" &&
-                !e.shiftKey &&
-                !isComposing &&
-                !enterDisabled
-              ) {
-                if (userInput.trim().length === 0) {
-                  e.preventDefault();
-                  return;
-                }
+              if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                const textarea = e.target as HTMLTextAreaElement;
-                textarea.form?.requestSubmit();
+                if (userInput.trim().length > 0) {
+                  const textarea = e.target as HTMLTextAreaElement;
+                  textarea.form?.requestSubmit();
+                }
               }
             }}
           />

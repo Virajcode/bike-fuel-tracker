@@ -3,111 +3,96 @@
 import { ChatInput } from "@/components/chat-input";
 import { Message } from "@/lib/types";
 import { fillMessageParts, generateUUID } from "@/lib/utils";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import useSWR from "swr";
 import ChatMessage from "./chat-message";
-import { streamChat } from "@/lib/clients/streamChatClient";
+import { apiClient } from "@/lib/api-client";
+import { toast } from "sonner";
 
 export function Chat({ id }: { id: string }) {
-  // Input state and handlers.
-  const initialInput = "";
-  const [inputContent, setInputContent] = useState<string>(initialInput);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [inputContent, setInputContent] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Store the chat state in SWR, using the chatId as the key to share states.
-  const { data: messages, mutate } = useSWR<Message[]>([id, "messages"], null, {
-    fallbackData: [],
-  });
+  // Fetch chat session and history
+  const { data: session } = useSWR(`/chat/sessions/${id}`, () => 
+    apiClient.chat.getSession(parseInt(id))
+  );
 
-  // Keep the latest messages in a ref.
-  const messagesRef = useRef<Message[]>(messages || []);
-  useEffect(() => {
-    messagesRef.current = messages || [];
-  }, [messages]);
+  const { data: chatHistory, mutate: mutateHistory } = useSWR(
+    `/chat/history/${id}`,
+    () => apiClient.chat.getHistory(parseInt(id))
+  );
 
-  const setMessages = useCallback(
-    (messages: Message[] | ((messages: Message[]) => Message[])) => {
-      if (typeof messages === "function") {
-        messages = messages(messagesRef.current);
+  // Convert chat history to messages format
+  const messages = useMemo(() => 
+    chatHistory?.flatMap(msg => [
+      {
+        id: msg.id.toString(),
+        content: msg.message,
+        role: 'user' as const,
+        createdAt: new Date(msg.timestamp),
+        parts: [{ type: 'text' as const, text: msg.message }]
+      },
+      {
+        id: `${msg.id}-response`,
+        content: msg.response,
+        role: 'assistant' as const,
+        createdAt: new Date(msg.timestamp),
+        parts: [{ type: 'text' as const, text: msg.response }]
       }
-
-      const messagesWithParts = fillMessageParts(messages);
-      mutate(messagesWithParts, false);
-      messagesRef.current = messagesWithParts;
-    },
-    [mutate]
+    ]) || [],
+    [chatHistory]
   );
 
-  // Append function
-  const append = useCallback(
-    async (message: Message) => {
-      return new Promise<string | null | undefined>((resolve) => {
-        setMessages((draft) => {
-          const lastMessage = draft[draft.length - 1];
+  // Handle sending messages
+  const handleSubmit = useCallback(async (event?: { preventDefault?: () => void }) => {
+    event?.preventDefault?.();
 
-          if (
-            lastMessage?.role === "assistant" &&
-            message.role === "assistant"
-          ) {
-            // Append to the last assistant message
-            const updatedMessage = {
-              ...lastMessage,
-              content: lastMessage.content + message.content,
-            };
+    if (!inputContent.trim()) return;
 
-            resolve(updatedMessage.content); // Resolve with the updated content
-            return [...draft.slice(0, -1), updatedMessage];
-          } else {
-            // Add a new message
-            resolve(message.content); // Resolve with the new content
-            return [...draft, message];
-          }
-        });
-      });
-    },
-    [setMessages]
-  );
-
-  // Append function
-  const appendAndTrigger = useCallback(
-    async (message: Message) => {
-      const inputContent: string = message.content;
-      await append(message);
-      return await streamChat({ inputContent, setIsLoading, append });
-    },
-    [setIsLoading, append]
-  );
-
-  // handlers
-  const handleInputChange = (e: any) => {
-    setInputContent(e.target.value);
-  };
-
-  const handleSubmit = useCallback(
-    async (event?: { preventDefault?: () => void }) => {
-      console.log("handleSubmit", event, inputContent);
-      event?.preventDefault?.();
-
-      if (!inputContent) return;
-
+    try {
+      setIsLoading(true);
+      
+      // Create a new message object
       const newMessage: Message = {
         id: generateUUID(),
         content: inputContent,
         role: "user",
+        createdAt: new Date(),
+        parts: [{ type: 'text' as const, text: inputContent }]
       };
-      append(newMessage);
 
+      // Clear input right away for better UX
       setInputContent("");
 
-      await streamChat({ inputContent, setIsLoading, append });
-    },
-    [inputContent, setInputContent, setIsLoading, append]
-  );
+      // Send message to backend
+      const aiResponse = "AI response here"; // Replace with actual AI call
+      await apiClient.chat.saveMessage(
+        parseInt(id),
+        inputContent,
+        aiResponse
+      );
+
+      // Refresh chat history to show new message
+      mutateHistory();
+      
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      toast.error("Failed to send message");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id, inputContent, mutateHistory]);
+
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setInputContent(e.target.value);
+  }, []);
 
   // handle form submission functionality
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    handleSubmit(e);
-  };
+  const onSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    handleSubmit();
+  }, [handleSubmit]);
 
   return (
     <div className="flex flex-col w-full max-w-3xl pt-14 pb-10 mx-auto stretch">
@@ -119,9 +104,9 @@ export function Chat({ id }: { id: string }) {
         handleInputChange={handleInputChange}
         handleSubmit={onSubmit}
         isLoading={isLoading}
-        messages={messages}
-        appendAndTrigger={appendAndTrigger}
-      />
+        messages={messages} appendAndTrigger={function (message: Message): Promise<void> {
+          throw new Error("Function not implemented.");
+        } }      />
     </div>
   );
 }
