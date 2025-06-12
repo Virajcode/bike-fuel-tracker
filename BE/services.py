@@ -1,5 +1,5 @@
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 from fastapi import FastAPI, Body, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from crew.chatbot import process_user_query
-from models import User, ChatHistory, UserCreate, UserResponse, Token, SessionLocal
+from models import ChatSession, User, ChatHistory, UserCreate, UserResponse, Token, SessionLocal
 from auth import get_password_hash, authenticate_user, create_access_token, get_current_active_user, ACCESS_TOKEN_EXPIRE_MINUTES
 
 # Import admin routes after all dependencies are defined
@@ -144,32 +144,102 @@ async def login_for_access_token(
 async def read_users_me(current_user: User = Depends(get_current_active_user)):
     return current_user
 
-# Chat history endpoint
-@app.post("/chat/history")
-async def save_chat_history(
-    message: str = Body(...),
-    response: str = Body(...),
+# Chat session endpoints
+class ChatSessionCreate(BaseModel):
+    topic: str = None
+
+@app.post("/chat/sessions")
+async def create_chat_session(
+    session_data: ChatSessionCreate,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    chat_history = ChatHistory(
+    chat_session = ChatSession(
         user_id=current_user.id,
-        message=message,
-        response=response
+        topic=session_data.topic
+    )
+    db.add(chat_session)
+    db.commit()
+    db.refresh(chat_session)
+    return chat_session
+
+@app.get("/chat/sessions")
+async def get_chat_sessions(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    sessions = db.query(ChatSession)\
+        .filter(ChatSession.user_id == current_user.id)\
+        .order_by(ChatSession.last_updated.desc())\
+        .all()
+    return sessions
+
+@app.get("/chat/sessions/{session_id}")
+async def get_chat_session(
+    session_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    session = db.query(ChatSession)\
+        .filter(ChatSession.id == session_id, ChatSession.user_id == current_user.id)\
+        .first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return session
+
+# Chat history endpoints
+class ChatMessageCreate(BaseModel):
+    session_id: int
+    message: str
+    response: str
+
+@app.post("/chat/history")
+async def save_chat_history(
+    chat_data: ChatMessageCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    # Verify session exists and belongs to user
+    session = db.query(ChatSession)\
+        .filter(ChatSession.id == chat_data.session_id, ChatSession.user_id == current_user.id)\
+        .first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    
+    chat_history = ChatHistory(
+        session_id=chat_data.session_id,
+        user_id=current_user.id,
+        message=chat_data.message,
+        response=chat_data.response
     )
     db.add(chat_history)
+    
+    # Update session last_updated time
+    session.last_updated = datetime.utcnow()
+    
     db.commit()
     db.refresh(chat_history)
     return {"status": "success", "message": "Chat history saved"}
 
-@app.get("/chat/history")
+@app.get("/chat/history/{session_id}")
 async def get_chat_history(
+    session_id: int,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
+    # Verify session exists and belongs to user
+    session = db.query(ChatSession)\
+        .filter(ChatSession.id == session_id, ChatSession.user_id == current_user.id)\
+        .first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    
     chat_history = db.query(ChatHistory)\
-        .filter(ChatHistory.user_id == current_user.id)\
-        .order_by(ChatHistory.timestamp.desc())\
+        .filter(
+            ChatHistory.session_id == session_id,
+            ChatHistory.user_id == current_user.id
+        )\
+        .order_by(ChatHistory.timestamp.asc())\
         .all()
     return chat_history
 

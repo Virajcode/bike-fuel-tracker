@@ -28,21 +28,36 @@ class User(Base):
     hashed_password = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
     is_active = Column(Boolean, default=True)
-    
-    # Relationship with chat history
+      # Relationships
     chat_history = relationship("ChatHistory", back_populates="user")
+    chat_sessions = relationship("ChatSession", back_populates="user")
+
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    topic = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", back_populates="chat_sessions")
+    messages = relationship("ChatHistory", back_populates="session", cascade="all, delete-orphan")
 
 class ChatHistory(Base):
     __tablename__ = "chat_history"
 
     id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("chat_sessions.id"))
     user_id = Column(Integer, ForeignKey("users.id"))
     message = Column(Text)
     response = Column(Text)
     timestamp = Column(DateTime, default=datetime.utcnow)
     
-    # Relationship with user
+    # Relationships
     user = relationship("User", back_populates="chat_history")
+    session = relationship("ChatSession", back_populates="messages")
 
 # Pydantic models for request/response
 class UserBase(BaseModel):
