@@ -30,6 +30,7 @@ export interface ChatMessage {
   session_id: number;
   message: string;
   response: string;
+  response_type?: string;
   timestamp: string;
 }
 
@@ -75,8 +76,8 @@ export const apiClient = {
       const response = await api.get<ChatMessage[]>(`/chat/history/${sessionId}`);
       return response.data;
     },
-    saveMessage: async (sessionId: number, message: string, response: string) => {
-      return api.post('/chat/history', { session_id: sessionId, message, response });
+    saveMessage: async (sessionId: number, message: string, response: string, response_type: string = "text") => {
+      return api.post('/chat/history', { session_id: sessionId, message, response, response_type });
     },
   },
 };

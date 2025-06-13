@@ -4,7 +4,6 @@ import React, { useRef, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
-import CodeDisplayBlock from "@/components/code-display-block";
 import { marked } from "marked";
 import { Message } from "@/lib/types";
 import { AILogo, UserIcon } from "./ui/icons";
@@ -116,32 +115,72 @@ export default function ChatMessage({ messages, isLoading }: ChatMessageProps) {
 
                   <div className="flex flex-col gap-2">
                     <span className="p-3 rounded-md max-w-xs sm:max-w-2xl overflow-x-auto">
-                      {/* Check if the message content contains a code block */}
-                      {message.content.split("```").map((part, index) => {
-                        if (index % 2 === 0) {
+                      {/* Check if the message content contains a code block or a JSON array of locations */}
+                      {(() => {
+                        let locationsArr = undefined;
+                        // Try to parse as JSON array (stringified)
+                        try {
+                          const parsed = JSON.parse(message.content);
+                          if (Array.isArray(parsed) && parsed[0]?.place_id) {
+                            locationsArr = parsed;
+                          }
+                        } catch {}
+                        // Try to parse as JS object array (not stringified)
+                        if (!locationsArr) {
+                          try {
+                            if (Array.isArray(message.content) && message.content[0]?.place_id) {
+                              locationsArr = message.content;
+                            }
+                          } catch {}
+                        }
+                        console.log("Locations Array:", typeof message.content);
+                        if (locationsArr) {
                           return (
-                            // <React.Fragment key={index}>{part}</React.Fragment>
-                            <span
-                              key={index}
-                              dangerouslySetInnerHTML={{
-                                __html: marked.parseInline(part),
-                              }}
-                            />
-                          );
-                        } else {
-                          // Extract language from the code block (assuming first word is the lang)
-                          const lines = part.split("\n");
-                          const firstLine = lines[0].trim();
-                          const detectedLang = /^[a-zA-Z]+$/.test(firstLine) ? firstLine : "plaintext"; // Default to 'plaintext' if no lang is specified
-                          const codeContent = detectedLang === "plaintext" ? part : lines.slice(1).join("\n");
-
-                          return (
-                            <pre className="whitespace-pre-wrap" key={index}>
-                              <CodeDisplayBlock code={codeContent} lang={detectedLang} />
-                            </pre>
+                            <div className="flex flex-col gap-2">
+                              {locationsArr.map((location: any, idx: number) => (
+                                <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 bg-accent p-3 rounded-lg shadow border border-border">
+                                  <div className="flex-1">
+                                    <div className="font-semibold text-base">{location.title}</div>
+                                    <div className="text-xs text-muted-foreground">Rank: {location.rank} | Score: {location.score?.toFixed(2)}</div>
+                                  </div>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="ml-auto"
+                                    onClick={() => {
+                                      window.open(
+                                        `https://www.google.com/maps?q=place_id:${location.place_id}`,
+                                        "_blank"
+                                      );
+                                    }}
+                                  >
+                                    View on Map
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
                           );
                         }
-                      })}
+                        // Fallback to normal rendering
+                        return message.content.split("```" ).map((part, index) => {
+                          if (index % 2 === 0) {
+                            return (
+                              <span
+                                key={index}
+                                dangerouslySetInnerHTML={{
+                                  __html: marked.parseInline(part),
+                                }}
+                              />
+                            );
+                          } else {
+                            // Extract language from the code block (assuming first word is the lang)
+                            const lines = part.split("\n");
+                            const firstLine = lines[0].trim();
+                            const detectedLang = /^[a-zA-Z]+$/.test(firstLine) ? firstLine : "plaintext"; // Default to 'plaintext' if no lang is specified
+                            const codeContent = detectedLang === "plaintext" ? part : lines.slice(1).join("\n");
+                          }
+                        });
+                      })()}
 
                       {isLoading &&
                         messages.indexOf(message) === messages.length - 1 && (
@@ -150,59 +189,6 @@ export default function ChatMessage({ messages, isLoading }: ChatMessageProps) {
                           </span>
                         )}
                     </span>
-
-                    {message.locations && message.locations.length > 0 && (
-                      <div className="flex flex-col gap-4 mt-4">
-                        {message.locations.map((location, idx) => (
-                          <motion.div
-                            key={idx}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="flex items-center justify-between bg-accent p-4 rounded-md text-base"
-                          >
-                            <div className="flex items-center gap-4">
-                              <MapPinIcon className="w-6 h-6" />
-                              <span>{location.title}</span>
-                            </div>
-                            <div className="flex items-center gap-4">
-                              {/* <span className="text-sm text-muted-foreground">
-                                {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
-                              </span> */}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  window.open(
-                                    `https://www.google.com/maps?q=place_id:${location.place_id}`,
-                                    "_blank"
-                                  );
-                                }}
-                              >
-                                View on Map
-                              </Button>
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Copy button inside the response container */}
-                    {/* {!isLoading && (
-                      <Button
-                        onClick={() =>
-                          copyResponseToClipboard(message.content, index)
-                        }
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5"
-                      >
-                        {copiedMessageId === index ? (
-                          <CheckIcon className="w-4 h-4 scale-100 transition-all" />
-                        ) : (
-                          <CopyIcon className="w-4 h-4 scale-100 transition-all" />
-                        )}
-                      </Button>
-                    )} */}
                   </div>
                 </div>
               )}

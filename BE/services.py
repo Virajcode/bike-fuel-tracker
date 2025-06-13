@@ -56,6 +56,7 @@ async def get_cities(request: CityRequest = Body(...)):
         
         # Get the response
         result = process_user_query(request.input_string)
+        print(f"Processed result: {result[:100]}...")  # Print first 100 chars of result
         
         # Check the type of result and return appropriate response
         if isinstance(result, str):
@@ -192,6 +193,7 @@ class ChatMessageCreate(BaseModel):
     session_id: int
     message: str
     response: str
+    response_type: str = "text"  # 'text' or 'json'
 
 @app.post("/chat/history")
 async def save_chat_history(
@@ -210,13 +212,12 @@ async def save_chat_history(
         session_id=chat_data.session_id,
         user_id=current_user.id,
         message=chat_data.message,
-        response=chat_data.response
+        response=chat_data.response,
+        response_type=chat_data.response_type
     )
     db.add(chat_history)
-    
     # Update session last_updated time
     session.last_updated = datetime.utcnow()
-    
     db.commit()
     db.refresh(chat_history)
     return {"status": "success", "message": "Chat history saved"}

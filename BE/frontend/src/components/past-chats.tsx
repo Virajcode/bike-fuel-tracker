@@ -35,7 +35,9 @@ export function PastChats({ isCollapsed, onToggle }: PastChatsProps) {
   const handleCreateNewChat = async () => {
     try {
       const newSession = await apiClient.chat.createSession("New Chat");
-      router.push(`/dashboard1/${newSession.id}`);
+      localStorage.setItem("selectedSessionId", newSession.toString());
+      window.location.reload();
+      router.push(`/dashboard`);
       mutate(); // Refresh the sessions list
     } catch (error) {
       console.error('Failed to create new chat:', error);
@@ -44,7 +46,9 @@ export function PastChats({ isCollapsed, onToggle }: PastChatsProps) {
   };
 
   const handleSessionClick = (sessionId: number) => {
-    router.push(`/dashboard1/${sessionId}`);
+    localStorage.setItem("selectedSessionId", sessionId.toString());
+      window.location.reload();
+    router.push(`/dashboard`);
   };
 
   return (

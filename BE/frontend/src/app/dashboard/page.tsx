@@ -3,12 +3,22 @@
 import { Chat } from "@/components/chat";
 import { generateUUID } from "@/lib/utils";
 import { PastChats } from "@/components/past-chats";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { SuggestedActions } from "@/components/suggested-actions";
+
 
 export default function Home() {
   const id = generateUUID();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+
+  // Only set selectedSessionId on first render
+  useEffect(() => {
+    const storedId = localStorage.getItem("selectedSessionId");
+    setSelectedSessionId(storedId);
+    console.log("Selected session ID on mount:", storedId);
+  }, []);
 
   return (
     <div className="flex h-[calc(100vh-56px)] mt-14">
@@ -23,7 +33,11 @@ export default function Home() {
         />
       </aside>
       <div className="flex-grow">
-        <Chat id={id} />
+        {selectedSessionId? (
+          <Chat/>
+        ) : (
+          <SuggestedActions />
+        )}
       </div>
     </div>
   );

@@ -67,7 +67,7 @@ export default function SignUpPage() {
 
       if (response.success) {
         toast.success("Registration successful! Please sign in.");
-        router.push("/auth/signin");
+        router.push("/");
       } else {
         toast.error(response.message || "Registration failed");
       }
@@ -154,7 +154,7 @@ export default function SignUpPage() {
           <p className="text-sm text-gray-600">
             Already have an account?{" "}
             <Link
-              href="/auth/signin"
+              href="/"
               className="font-medium text-primary hover:text-primary/80"
             >
               Sign in

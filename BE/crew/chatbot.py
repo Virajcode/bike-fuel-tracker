@@ -72,7 +72,7 @@ def process_user_query(user_input):
                 3. IMPORTANT: Your response must be a valid JSON object only, with no other text For location queries only."""
         ),
         expected_output=(
-            "For location queries: A raw JSON object containing 5 relevant locations.\n"
+            "For location queries: A raw **JSON** object containing 5 relevant locations.do not give type as text i only want json\n"
             "For general queries: A friendly, informative response addressing the user's travel-related questions."
         ),
     )

@@ -51,7 +51,7 @@ export function ChatInput({
               <SuggestedActions/>
             </div>
           ))}
-        <div className="relative flex items-center w-full gap-2 bg-muted rounded-3xl border border-input px-4 py-3">
+        <div className="relative flex items-center gap-2 bg-muted rounded-3xl border border-input px-4 py-3">
           <Textarea
             ref={inputRef}
             name="input"

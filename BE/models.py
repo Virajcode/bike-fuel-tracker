@@ -53,6 +53,7 @@ class ChatHistory(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     message = Column(Text)
     response = Column(Text)
+    response_type = Column(String, default="text")  # 'text' or 'json'
     timestamp = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
